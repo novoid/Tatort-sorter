@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
-PROG_VERSION = u"Time-stamp: <2021-05-19 21:10:42 vk>"
+PROG_VERSION = u"Time-stamp: <2021-05-19 21:43:01 vk>"
 PROG_VERSION_DATE = PROG_VERSION[13:23]
 
 import time
@@ -146,7 +146,7 @@ def main():
         rootdir = "."
         regex = re.compile(r'.+? Tatort .*?' + row['Titel'] + r'.+$')
 
-        locale.setlocale(locale.LC_ALL, '')
+        locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
 
         if 'wieder Oper' in row['Titel']:
             pass
@@ -172,8 +172,10 @@ def main():
 
                     # parsing the date:
                     try:
+                        # example: '17.\xa0Juli 2021'
                         mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%B %Y')
                     except ValueError:
+                        # example: '17.\xa0Jul. 2021'
                         mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%b. %Y')
 
                     if ' -- ' in file:
@@ -194,7 +196,7 @@ def main():
                         # warn if an episode was downloaded twice without overwriting the previous version
                         logging.warning('File "' + file + '" \n' + ' ' * 5 + 'already exists as: ' + destinationpath + '\n')
                     else:
-                        logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + newfilename + '\n')
+                        logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + destinationpath + '\n')
                         if not options.simulate:
                             os.rename(file, destinationpath)
 
