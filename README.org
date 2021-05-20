@@ -29,7 +29,7 @@ with two tags being re-used in the resulting file name:
 
 I'm downloading [[https://de.wikipedia.org/wiki/Tatort_(Fernsehreihe)][Tatort]] episodes [[https://karl-voit.at/mediathekview/][via the MediathekView software]].
 
-With dosends of episodes in a folder, you don't have any idea on
+With dozens of episodes in a folder, you don't have any idea on
 temporal order or who are the Ermittler. 
 
 A typical set of files downloaded via MediathekView and renamed
@@ -43,7 +43,7 @@ according to [[https://karl-voit.at/mediathekview/][my usual download process]] 
 : 2021-04-11T20.15.05 ORF - Tatort - Der böse König -- highquality.mp4
 : 2019-05-12T20.15.00 ORF - Tatort - Das Monster von Kassel -- highquality.mp4
 
-After applying this script, the files are moved to subdirectories and
+After applying this script, the files are moved to sub-directories and
 renamed like that:
 
 : Voss, Ringelhahn, Goldwasser, Fleischer und Schatz/2021-05-16 Tatort 1168 - Voss, Ringelhahn, Goldwasser, Fleischer und Schatz 7 - Wo ist Mike? -- highquality.mp4
@@ -57,7 +57,7 @@ renamed like that:
 Notice the potentially different dates. The downloaded files do have the
 time-stamp from the broadcast whereas the renamed files do have the
 date of their first broadcast ("Erstausstrahlung"). In my example
-above, the last file looks like it was initially broadcastet on 
+above, the last file looks like it was initially broadcast on 
 
 ** Warning: No proper error handling
 
@@ -71,14 +71,14 @@ The list of Tatort episodes is processed in reverse order with the
 newest episodes first. If there is a general episode title like
 "Mord", /any/ file name containing "Mord" is a match even though the
 file name is "Das ist kein Mord hier.mp4". This might result in *wrong
-associations* and therefore wrong subdirectories as well as wrong file
+associations* and therefore wrong sub-directories as well as wrong file
 names. So please do check the screen output and revert wrong matches
 manually. Here is a real example of a wrong match:
 
 : INFO     Moving file "2019-05-12T20.15.00 ORF - Tatort - Tatort_ Das Monster von Kassel -- highquality.mp4" → 
 :      2020-02-02 Tatort 1119 - Faber, Bönisch, Dalay und Pawlak 16 - Monster -- highquality.mp4
 
-The file should habe been:
+The file should have been:
 : Janneke und Brix/2019-05-12 Tatort 1094 - Janneke und Brix 9 - Das Monster von Kassel -- highquality.mp4
 
 For additional confidence, the script prints out a warning if the
