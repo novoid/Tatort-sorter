@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
-PROG_VERSION = u"Time-stamp: <2021-05-20 18:32:25 vk>"
+PROG_VERSION = u"Time-stamp: <2021-05-20 19:14:51 vk>"
 PROG_VERSION_DATE = PROG_VERSION[13:23]
 
 import time
@@ -200,6 +200,10 @@ def main():
                         logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + destinationpath + '\n')
                         if not options.simulate:
                             os.rename(file, destinationpath)
+
+                    if not newfilename.startswith(mydate.strftime('%Y-%m-%d')):
+                        logging.warning('Please check the previous output: dates differ which could be a repetition of an ' +
+                                        'older episode (perfectly fine) or a mismatch according to the title (needs to be fixed).')
 
     logging.debug("successfully finished.")
 
