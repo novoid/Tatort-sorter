@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
-PROG_VERSION = u"Time-stamp: <2021-05-19 21:43:01 vk>"
+PROG_VERSION = u"Time-stamp: <2021-05-20 18:32:25 vk>"
 PROG_VERSION_DATE = PROG_VERSION[13:23]
 
 import time
@@ -166,6 +166,7 @@ def main():
                     
                     if not os.path.exists(directory) and not options.simulate:
                         os.makedirs(directory)
+                        logging.warning('I created a new directory for "Ermitter": ' + directory)
 
                     # removing footnotes in dates and fixing "Jan." for %B matching:
                     erstausstrahlung = re.sub(r'\[.+\]', '', row['Erstausstrahlung'].replace('Jan.', 'Jänner'))
