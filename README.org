@@ -1,0 +1,149 @@
+* Tatort-sorter.py
+
+This Python script parses the file names of the current directory,
+compares their file names if they contain "Titel" from the long table
+from [[https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen][Liste der Tatort-Folgen – Wikipedia]]. The list is dynamically
+loaded from the web. 
+
+If a match is found, the file then gets moved to a sub-directory
+according to the name of the "Ermittler". Furthermore, the file gets
+renamed according to this pattern:
+
+: YYYY-MM-DD Tatort <Folge> - <Ermittler> <Fall> - <Titel>.<extension>
+
+The date is the date of the "Erstausstrahlung". Here is an example
+file name from the directory "Thiel und Boerne":
+
+: 2007-10-28 Tatort 678 - Thiel und Boerne 12 - Satisfaktion.mp4
+
+If you are using [[https://github.com/novoid/filetags][filetags]], they will be preserved. Here is an example
+with two tags being re-used in the resulting file name:
+
+: 2011-08-28 Tatort 807 - Eisner 26 - Lohn der Arbeit -- highquality karl.mp4
+
+- *Target group*: users who are able to use command line tools and who
+  are not afraid of Python scripts
+- Hosted on github: https://github.com/novoid/
+
+** Why
+
+I'm downloading [[https://de.wikipedia.org/wiki/Tatort_(Fernsehreihe)][Tatort]] episodes [[https://karl-voit.at/mediathekview/][via the MediathekView software]].
+
+With dosends of episodes in a folder, you don't have any idea on
+temporal order or who are the Ermittler. 
+
+A typical set of files downloaded via MediathekView and renamed
+according to [[https://karl-voit.at/mediathekview/][my usual download process]] looks like that:
+
+: 2021-05-16T20.15.00 ORF - Tatort - Wo ist Mike -- highquality.mp4
+: 2021-05-09T20.15.00 ORF - Tatort - Verschwörung -- highquality.mp4
+: 2021-05-02T20.15.12 ORF - Tatort - Rhythm and Love -- highquality.mp4
+: 2021-04-25T20.15.12 ORF - Tatort - Was wir erben -- highquality.mp4
+: 2021-04-18T20.15.12 ORF - Tatort - Macht der Familie -- highquality.mp4
+: 2021-04-11T20.15.05 ORF - Tatort - Der böse König -- highquality.mp4
+: 2019-05-12T20.15.00 ORF - Tatort - Das Monster von Kassel -- highquality.mp4
+
+After applying this script, the files are moved to subdirectories and
+renamed like that:
+
+: Voss, Ringelhahn, Goldwasser, Fleischer und Schatz/2021-05-16 Tatort 1168 - Voss, Ringelhahn, Goldwasser, Fleischer und Schatz 7 - Wo ist Mike? -- highquality.mp4
+: Eisner und Fellner/2021-05-09 Tatort 1167 - Eisner und Fellner 51 - Verschwörung -- highquality.mp4
+: Thiel und Boerne/2021-05-02 Tatort 1166 - Thiel und Boerne 39 - Rhythm and Love -- highquality.mp4
+: Tobler und Berg/2021-04-25 Tatort 1165 - Tobler und Berg 7 - Was wir erben -- highquality.mp4
+: Falke und Grosz/2021-04-18 Tatort 1164 - Falke und Grosz 15 - Macht der Familie -- highquality.mp4
+: Odenthal und Stern/2021-04-11 Tatort 1163 - Odenthal und Stern 74 - Der böse König -- highquality.mp4
+: Faber, Bönisch, Dalay und Pawlak/2020-02-02 Tatort 1119 - Faber, Bönisch, Dalay und Pawlak 16 - Monster -- highquality.mp4
+
+Notice the potentially different dates. The downloaded files do have the
+time-stamp from the broadcast whereas the renamed files do have the
+date of their first broadcast ("Erstausstrahlung"). In my example
+above, the last file looks like it was initially broadcastet on 
+
+** Warning: No proper error handling
+
+Notice, that this script *does not contain the proper error handling*
+yet. Feel free to send pull requests with tests, fixes, error
+handling, and so forth.
+
+** Warning: Wrong associations
+
+The list of Tatort episodes is processed in reverse order with the
+newest episodes first. If there is a general episode title like
+"Mord", /any/ file name containing "Mord" is a match even though the
+file name is "Das ist kein Mord hier.mp4". This might result in *wrong
+associations* and therefore wrong subdirectories as well as wrong file
+names. So please do check the screen output and revert wrong matches
+manually. Here is a real example of a wrong match:
+
+: INFO     Moving file "2019-05-12T20.15.00 ORF - Tatort - Tatort_ Das Monster von Kassel -- highquality.mp4" → 
+:      2020-02-02 Tatort 1119 - Faber, Bönisch, Dalay und Pawlak 16 - Monster -- highquality.mp4
+
+The file should habe been:
+: Janneke und Brix/2019-05-12 Tatort 1094 - Janneke und Brix 9 - Das Monster von Kassel -- highquality.mp4
+
+For additional confidence, the script prints out a warning if the
+dates differ. You need to check manually.
+
+This is a correct association although the dates differ:
+
+: INFO     Moving file "2020-11-07T22.35.00 ORF - Tatort - Tatort  Der Mann, der lügt -- highquality.mp4" →
+:     2018-11-04 Tatort 1071 - Lannert und Bootz 22 - Der Mann, der lügt -- highquality.mp4
+
+** English
+
+The script is in English because I tend to program in English only.
+People who do have an issue with English messages and texts are most
+likely not the target group of a hacky Python script like this. ;-)
+
+** Simulate first!
+
+I would recommend you to *use the command line switch =--simulate=
+first* so that you see what would happen, before you actually modify
+files! Note in this case, de-duplication is not checked.
+
+** Usage
+
+: Tatort-sorter.py
+... does its magic in the current directory of execution
+
+# #+BEGIN_SRC sh :results output :wrap src
+# ./Tatort-sorter.py -h
+# #+END_SRC
+
+#+begin_src
+usage: ./Tatort-sorter.py [-h] [-s] [-v] [-q] [--version]
+
+This script moves episodes of "Tatort" into sub-folders according to the names of the Ermittler.
+
+optional arguments:
+  -h, --help      show this help message and exit
+  -s, --simulate  Just print what's being done, do not move files or create
+                  directories (no file exists check though)
+  -v, --verbose   Enable verbose mode
+  -q, --quiet     Enable quiet mode
+  --version       Display version and exit
+
+:copyright: (c) by Karl Voit <tools@Karl-Voit.at>
+:license: GPL v3 or any later version
+:URL: https://github.com/novoid/Tatort-sorter
+:bugreports: via github or <tools@Karl-Voit.at>
+:version: 2021-05-20
+·
+#+end_src
+
+** Installation
+
+Get it from [[https://github.com/novoid/Tatort-sorter][GitHub]]. You need to know how to download and execute a
+Python script.
+
+* How to Thank Me
+
+I'm glad you like my tools. If you want to support me:
+
+- Send old-fashioned *postcard* per snailmail - I love personal feedback!
+  - see [[http://tinyurl.com/j6w8hyo][my address]]
+- Send feature wishes or improvements as an issue on GitHub
+- Create issues on GitHub for bugs
+- Contribute merge requests for bug fixes
+- Check out my other cool [[https://github.com/novoid][projects on GitHub]]
+
