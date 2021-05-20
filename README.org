@@ -97,7 +97,7 @@ likely not the target group of a hacky Python script like this. ;-)
 
 ** Simulate first!
 
-I would recommend you to *use the command line switch ~--simulate~
+I would recommend you to *use the command line switch "--simulate"
 first* so that you see what would happen, before you actually modify
 files! Note in this case, de-duplication is not checked.
 
