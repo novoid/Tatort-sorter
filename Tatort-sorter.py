@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
-PROG_VERSION = u"Time-stamp: <2021-05-20 19:14:51 vk>"
+PROG_VERSION = u"Time-stamp: <2024-01-13 18:27:38 vk>"
 PROG_VERSION_DATE = PROG_VERSION[13:23]
 
 import time
@@ -20,15 +20,15 @@ PROG_NAME = os.path.basename(sys.argv[0])
 
 from importlib import import_module
 
-def save_import(library):
+def safe_import(library):
     try:
         globals()[library] = import_module(library)
     except ImportError:
         print("Could not find Python module \"" + library + "\".\nPlease install it, e.g., with \"sudo python3 -m pip install " + library + "\"")
         sys.exit(2)
 
-save_import('pandas')
-save_import('lxml')
+safe_import('pandas')
+safe_import('lxml')
 
 import re
 import sys
