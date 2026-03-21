@@ -119,7 +119,10 @@ def main():
 
 
     url = r'https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen'
-    tables = pandas.read_html(url)  # Returns list of all tables on page
+    import urllib.request
+    req = urllib.request.Request(url, headers={'User-Agent': 'Tatort-sorter/1.0 (https://github.com/novoid/Tatort-sorter; tools@Karl-Voit.at)'})
+    html = urllib.request.urlopen(req).read()
+    tables = pandas.read_html(html)  # Returns list of all tables on page
     table = tables[0]  # The list of Tatort episodes
 
     # invert the order of the table, starting with the newest episode
