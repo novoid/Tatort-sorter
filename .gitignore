@@ -1,0 +1,11 @@
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+venv/
+.venv/
+update_mypi.sh
+.python-version
+tests
+202*mp4
