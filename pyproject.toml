@@ -1,10 +1,66 @@
 [project]
 name = "tatort-sorter"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
+description = "Moves and renames Tatort episodes into sub-folders according to the Ermittler based on the Wikipedia episode list"
+# readme = "README.org"
+readme = {text = """
+This Python script parses the file names of the current directory,
+compares their file names if they contain "Titel" from the long table
+from Liste der Tatort-Folgen on Wikipedia. The list is dynamically
+loaded from the web.
+
+If a match is found, the file then gets moved to a sub-directory
+according to the name of the "Ermittler". Furthermore, the file gets
+renamed according to this pattern:
+
+YYYY-MM-DD Tatort <Folge> - <Ermittler> <Fall> - <Titel>.<extension>
+
+- Target group: users who are able to use command line tools and who are not afraid of Python scripts
+- Hosted and documented on github: https://github.com/novoid/Tatort-sorter
+""", content-type = "text/plain"}
+version = "2026.03.21.1"
+keywords = ["tatort", "tv", "media", "file managing", "file management", "files", "renaming"]
+
+# sequence along https://pypi.org/classifiers
+classifiers=[
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    ]
+
+authors = [{name="Karl Voit", email="tools@Karl-Voit.at"}]
+license = "GPL-3.0-or-later"
+requires-python = ">=3.10"  # see https://devguide.python.org/versions/
 dependencies = [
     "lxml>=6.0.2",
     "pandas>=2.3.3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/novoid/Tatort-sorter"
+Repository = "https://github.com/novoid/Tatort-sorter"
+Issues = "https://github.com/novoid/Tatort-sorter/issues"
+
+[project.scripts]
+tatort-sorter="Tatort_sorter:main"
+
+[tool.setuptools]
+py-modules = ["Tatort_sorter"]
+
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[[tool.uv.index]]
+name = "tatort-sorter"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true

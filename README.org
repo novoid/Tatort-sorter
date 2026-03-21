@@ -1,4 +1,4 @@
-* Tatort-sorter.py
+* tatort-sorter
 
 This Python script parses the file names of the current directory,
 compares their file names if they contain "Titel" from the long table
@@ -101,17 +101,19 @@ I would recommend you to *use the command line switch "--simulate"
 first* so that you see what would happen, before you actually modify
 files! Note in this case, de-duplication is not checked.
 
+: uv --project /path/to/Tatort-sorter run tatort-sorter --simulate
+
 ** Usage
 
-: Tatort-sorter.py
+: uv --project /path/to/Tatort-sorter run tatort-sorter
 ... does its magic in the current directory of execution
 
 # #+BEGIN_SRC sh :results output :wrap src
-# ./Tatort-sorter.py -h
+# uv --project /path/to/Tatort-sorter run tatort-sorter -h
 # #+END_SRC
 
 #+begin_src
-usage: ./Tatort-sorter.py [-h] [-s] [-v] [-q] [--version]
+usage: tatort-sorter [-h] [-s] [-v] [-q] [--version]
 
 This script moves episodes of "Tatort" into sub-folders according to the names of the Ermittler.
 
@@ -133,8 +135,15 @@ optional arguments:
 
 ** Installation
 
-Get it from [[https://github.com/novoid/Tatort-sorter][GitHub]]. You need to know how to download and execute a
-Python script.
+Install via [[https://docs.astral.sh/uv/][uv]]:
+
+: uv tool install --from git+https://github.com/novoid/Tatort-sorter tatort-sorter
+
+Or clone the repository and run directly:
+
+: git clone https://github.com/novoid/Tatort-sorter.git
+: cd /path/to/your/tatort/files
+: uv --project /path/to/Tatort-sorter run tatort-sorter --simulate
 
 * How to Thank Me
 
