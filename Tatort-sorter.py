@@ -147,66 +147,76 @@ def main():
         # Besonderheiten      Ausstrahlung anlässlich des Weltfrauentages (8...
 
         rootdir = "."
-        regex = re.compile(r'.+? Tatort .*?' + row['Titel'] + r'.+$')
+        escaped_title = re.escape(row['Titel'])
+        regex = re.compile(r'.+? Tatort .*?\s' + escaped_title + r'(\s.+$|$)')
+        regex_fallback = re.compile(r'.+? Tatort .*?\s' + escaped_title + r'(\s.+$|$)', re.IGNORECASE)
 
         locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
 
         if 'wieder Oper' in row['Titel']:
             pass
             #import pudb; pu.db
-        
+
         for root, dirs, files in os.walk(os.getcwd()):
 
             del dirs[:]  # do not visit sub-directories
-            
+
             for file in files:
                 if regex.match(file):
-                    
                     logging.debug('found match: ' + file)
+                elif regex_fallback.match(file):
+                    logging.warning('found case-insensitive match: ' + file + '\n' +
+                                    ' ' * 5 + '(Wikipedia title: "' + row['Titel'] + '")')
+                    answer = input('     Accept this match? [y/n] ').strip().lower()
+                    if answer != 'y':
+                        logging.info('Skipping file due to user decision.')
+                        continue
+                else:
+                    continue
 
-                    # the resulting files will be moved to directory names according to the Ermittler
-                    directory = row['Ermittler']
-                    
-                    if not os.path.exists(directory) and not options.simulate:
-                        os.makedirs(directory)
-                        logging.warning('I created a new directory for "Ermitter": ' + directory)
+                # the resulting files will be moved to directory names according to the Ermittler
+                directory = row['Ermittler']
 
-                    # removing footnotes in dates and fixing "Jan." for %B matching:
-                    erstausstrahlung = re.sub(r'\[.+\]', '', row['Erstausstrahlung'].replace('Jan.', 'Jänner'))
+                if not os.path.exists(directory) and not options.simulate:
+                    os.makedirs(directory)
+                    logging.warning('I created a new directory for "Ermitter": ' + directory)
 
-                    # parsing the date:
-                    try:
-                        # example: '17.\xa0Juli 2021'
-                        mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%B %Y')
-                    except ValueError:
-                        # example: '17.\xa0Jul. 2021'
-                        mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%b. %Y')
+                # removing footnotes in dates and fixing "Jan." for %B matching:
+                erstausstrahlung = re.sub(r'\[.+\]', '', row['Erstausstrahlung'].replace('Jan.', 'Jänner'))
 
-                    if ' -- ' in file:
-                        # if there are filetags, preserve them in the resulting file name
-                        end_with_tags = re.match(r'.+( -- .+)', file).group(1)
-                    else:
-                        # pre-fill file name end with file extension (in case of no filetags)
-                        end_with_tags = os.path.splitext(file)[-1]  
+                # parsing the date:
+                try:
+                    # example: '17.\xa0Juli 2021'
+                    mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%B %Y')
+                except ValueError:
+                    # example: '17.\xa0Jul. 2021'
+                    mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%b. %Y')
 
-                    # example file names:
-                    # 2011-08-28 Tatort 807 - Eisner 26 - Lohn der Arbeit -- highquality karl.mp4
-                    # 2007-10-28 Tatort 678 - Thiel und Boerne 12 - Satisfaktion.mp4
-                    newfilename = mydate.strftime('%Y-%m-%d') + ' Tatort ' + str(row['Folge']) + ' - ' + row['Ermittler'] + ' ' + \
-                        str(row['Fall']) + ' - ' + row['Titel'] + end_with_tags
+                if ' -- ' in file:
+                    # if there are filetags, preserve them in the resulting file name
+                    end_with_tags = re.match(r'.+( -- .+)', file).group(1)
+                else:
+                    # pre-fill file name end with file extension (in case of no filetags)
+                    end_with_tags = os.path.splitext(file)[-1]
 
-                    destinationpath = os.path.join(directory, newfilename)
-                    if os.path.isfile(destinationpath):
-                        # warn if an episode was downloaded twice without overwriting the previous version
-                        logging.warning('File "' + file + '" \n' + ' ' * 5 + 'already exists as: ' + destinationpath + '\n')
-                    else:
-                        logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + destinationpath + '\n')
-                        if not options.simulate:
-                            os.rename(file, destinationpath)
+                # example file names:
+                # 2011-08-28 Tatort 807 - Eisner 26 - Lohn der Arbeit -- highquality karl.mp4
+                # 2007-10-28 Tatort 678 - Thiel und Boerne 12 - Satisfaktion.mp4
+                newfilename = mydate.strftime('%Y-%m-%d') + ' Tatort ' + str(row['Folge']) + ' - ' + row['Ermittler'] + ' ' + \
+                    str(row['Fall']) + ' - ' + row['Titel'] + end_with_tags
 
-                    if not newfilename.startswith(mydate.strftime('%Y-%m-%d')):
-                        logging.warning('Please check the previous output: dates differ which could be a repetition of an ' +
-                                        'older episode (perfectly fine) or a mismatch according to the title (needs to be fixed).')
+                destinationpath = os.path.join(directory, newfilename)
+                if os.path.isfile(destinationpath):
+                    # warn if an episode was downloaded twice without overwriting the previous version
+                    logging.warning('File "' + file + '" \n' + ' ' * 5 + 'already exists as: ' + destinationpath + '\n')
+                else:
+                    logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + destinationpath + '\n')
+                    if not options.simulate:
+                        os.rename(file, destinationpath)
+
+                if not newfilename.startswith(mydate.strftime('%Y-%m-%d')):
+                    logging.warning('Please check the previous output: dates differ which could be a repetition of an ' +
+                                    'older episode (perfectly fine) or a mismatch according to the title (needs to be fixed).')
 
     logging.debug("successfully finished.")
 
