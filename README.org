@@ -1,9 +1,17 @@
 * tatort-sorter
 
-This Python script parses the file names of the current directory,
-compares their file names if they contain "Titel" from the long table
-from [[https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen][Liste der Tatort-Folgen – Wikipedia]]. The list is dynamically
-loaded from the web. 
+This Python script parses the file names of the current directory and
+matches them against the long table from [[https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen][Liste der Tatort-Folgen –
+Wikipedia]]. The list is dynamically loaded from the web.
+
+Two input file name patterns are supported:
+
+- *MediathekView downloads* are matched by the "Titel" from Wikipedia
+  (see [[*Why][Why]]):
+  : 2021-05-16T20.15.00 ORF - Tatort - Wo ist Mike -- highquality.mp4
+- *Web downloads* are matched by season and episode, and the title is
+  checked against Wikipedia (see [[*Web downloads][Web downloads]]):
+  : Tatort S2026E18 Die letzten Menschen von Koeln 1080p ARD WEB-DL AAC2 0 H 264-NTb[EZTVx.to].mkv
 
 If a match is found, the file then gets moved to a sub-directory
 according to the name of the "Ermittler". Furthermore, the file gets
@@ -49,18 +57,20 @@ according to [[https://karl-voit.at/mediathekview/][my usual download process]] 
 After applying this script, the files are moved to sub-directories and
 renamed like that:
 
-: Voss, Ringelhahn, Goldwasser, Fleischer und Schatz/2021-05-16 Tatort 1168 - Voss, Ringelhahn, Goldwasser, Fleischer und Schatz 7 - Wo ist Mike? -- highquality.mp4
-: Eisner und Fellner/2021-05-09 Tatort 1167 - Eisner und Fellner 51 - Verschwörung -- highquality.mp4
-: Thiel und Boerne/2021-05-02 Tatort 1166 - Thiel und Boerne 39 - Rhythm and Love -- highquality.mp4
-: Tobler und Berg/2021-04-25 Tatort 1165 - Tobler und Berg 7 - Was wir erben -- highquality.mp4
-: Falke und Grosz/2021-04-18 Tatort 1164 - Falke und Grosz 15 - Macht der Familie -- highquality.mp4
-: Odenthal und Stern/2021-04-11 Tatort 1163 - Odenthal und Stern 74 - Der böse König -- highquality.mp4
-: Faber, Bönisch, Dalay und Pawlak/2020-02-02 Tatort 1119 - Faber, Bönisch, Dalay und Pawlak 16 - Monster -- highquality.mp4
+: Voss, Ringelhahn, Goldwasser, Fleischer und Schatz/2021-05-16 Tatort 1168 S2021E18 - Voss, Ringelhahn, Goldwasser, Fleischer und Schatz 7 - Wo ist Mike?.mp4
+: Eisner und Fellner/2021-05-09 Tatort 1167 S2021E17 - Eisner und Fellner 51 - Verschwörung.mp4
+: Thiel und Boerne/2021-05-02 Tatort 1166 S2021E16 - Thiel und Boerne 39 - Rhythm and Love.mp4
+: Tobler und Berg/2021-04-25 Tatort 1165 S2021E15 - Tobler und Berg 7 - Was wir erben.mp4
+: Falke und Grosz/2021-04-18 Tatort 1164 S2021E14 - Falke und Grosz 15 - Macht der Familie.mp4
+: Odenthal und Stern/2021-04-11 Tatort 1163 S2021E13 - Odenthal und Stern 74 - Der böse König.mp4
+: Faber, Bönisch, Dalay und Pawlak/2020-02-02 Tatort 1119 S2020E05 - Faber, Bönisch, Dalay und Pawlak 16 - Monster.mp4
 
 Notice the potentially different dates. The downloaded files do have the
 time-stamp from the broadcast whereas the renamed files do have the
 date of their first broadcast ("Erstausstrahlung"). In my example
-above, the last file looks like it was initially broadcast on 
+above, the last file looks like it was initially broadcast on
+2020-02-02, which is actually a wrong association (see [[*Warning: Wrong associations][Wrong
+associations]]).
 
 ** Web downloads
 
@@ -84,14 +94,14 @@ and the file extension is kept:
 Before moving a file, all sub-directories are checked for already
 sorted files with the same Tatort number (the number after "Tatort"),
 e.g., =2026-09-20 Tatort 1340 - Ballauf und Schenk 96 - Die letzten
-Menschen von Koeln -- highquality.mp4= in the old pattern without
+Menschen von Köln -- highquality.mp4= in the old pattern without
 =S<YYYY>E<xx>=. This is independent of the file name pattern, the
 spelling of the title, the Ermittler directory, filetags, or the file
 extension. Such a file is reported as a potential double and you are
 asked: "Move it (m), delete it (d) or skip it (s)?". Deleting removes
 the new download, not the already sorted file. With =--simulate=,
-nothing gets moved or deleted. Files with the exact same target name are never
-overwritten.
+nothing gets moved or deleted. Files with the exact same target name
+are never overwritten.
 
 ** Warning: No proper error handling
 
@@ -100,6 +110,10 @@ yet. Feel free to send pull requests with tests, fixes, error
 handling, and so forth.
 
 ** Warning: Wrong associations
+
+This affects MediathekView downloads only: web downloads are matched
+by =S<YYYY>E<xx>= and you are asked for confirmation if their title
+differs from the Wikipedia title.
 
 The list of Tatort episodes is processed in reverse order with the
 newest episodes first. If there is a general episode title like
@@ -110,10 +124,10 @@ names. So please do check the screen output and revert wrong matches
 manually. Here is a real example of a wrong match:
 
 : INFO     Moving file "2019-05-12T20.15.00 ORF - Tatort - Tatort_ Das Monster von Kassel -- highquality.mp4" → 
-:      2020-02-02 Tatort 1119 - Faber, Bönisch, Dalay und Pawlak 16 - Monster -- highquality.mp4
+:      Faber, Bönisch, Dalay und Pawlak/2020-02-02 Tatort 1119 S2020E05 - Faber, Bönisch, Dalay und Pawlak 16 - Monster.mp4
 
 The file should have been:
-: Janneke und Brix/2019-05-12 Tatort 1094 - Janneke und Brix 9 - Das Monster von Kassel -- highquality.mp4
+: Janneke und Brix/2019-05-12 Tatort 1094 S2019E17 - Janneke und Brix 9 - Das Monster von Kassel.mp4
 
 For additional confidence, the script prints out a warning if the
 dates differ. You need to check manually.
@@ -121,7 +135,7 @@ dates differ. You need to check manually.
 This is a correct association although the dates differ:
 
 : INFO     Moving file "2020-11-07T22.35.00 ORF - Tatort - Tatort  Der Mann, der lügt -- highquality.mp4" →
-:     2018-11-04 Tatort 1071 - Lannert und Bootz 22 - Der Mann, der lügt -- highquality.mp4
+:     Lannert und Bootz/2018-11-04 Tatort 1071 S2018E31 - Lannert und Bootz 22 - Der Mann, der lügt.mp4
 
 ** English
 
