@@ -104,6 +104,228 @@ def successful_exit():
     sys.exit(0)
 
 
+VIDEO_EXTENSIONS = ('.mkv', '.mp4', '.avi', '.m4v', '.ts')
+
+# tokens which mark the start of release meta-information in web download file names
+# (resolution or source); everything from such a token on is not part of the title
+WEB_METADATA_TOKEN_REGEX = re.compile(
+    r'(\d{3,4}[pi]|4k|uhd|[hs]d|web-?dl|webrip|web|hdtv|bluray|bdrip|brrip|dvdrip)',
+    re.IGNORECASE)
+
+# example: "Tatort S2026E18 Die letzten Menschen von Koeln 1080p ARD WEB-DL AAC2 0 H 264-NTb[EZTVx.to].mkv"
+WEB_FILENAME_REGEX = re.compile(r'^Tatort\s+S(\d{4})E(\d{1,3})\s+(.+)$', re.IGNORECASE)
+
+FILETAG_TO_REMOVE = 'highquality'
+
+
+def parse_erstausstrahlung(erstausstrahlung):
+    """Parses dates like '17.\xa0Juli 2021' or '17.\xa0Jul. 2021' (with optional footnotes)
+    and returns a datetime object. Raises ValueError if not parseable."""
+
+    # removing footnotes in dates and fixing "Jan." for %B matching:
+    erstausstrahlung = re.sub(r'\[.+?\]', '', str(erstausstrahlung).replace('Jan.', 'Jänner')).strip()
+    # some episodes list multiple dates such as '24. März 2008 (Das Erste) 13. Jan. 2008 (SF)':
+    # use the first one
+    first_date = re.match(r'\d{1,2}\.\s?\S+ \d{4}', erstausstrahlung)
+    if first_date:
+        erstausstrahlung = first_date.group(0)
+    try:
+        # example: '17.\xa0Juli 2021'
+        return datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%B %Y')
+    except ValueError:
+        # example: '17.\xa0Jul. 2021'
+        return datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%b. %Y')
+
+
+def normalize_title(title):
+    """Returns a simplified version of a title for comparing titles:
+    lower case, umlauts transliterated, no punctuation, single spaces."""
+
+    title = title.lower()
+    for orig, replacement in (('ä', 'ae'), ('ö', 'oe'), ('ü', 'ue'), ('ß', 'ss')):
+        title = title.replace(orig, replacement)
+    title = re.sub(r'[^\w\s]', ' ', title)
+    return ' '.join(title.split())
+
+
+def parse_web_filename(filename):
+    """Returns (year, episode, raw_title, extension) for web download file names
+    like 'Tatort S2026E18 Die letzten Menschen von Koeln 1080p ARD WEB-DL AAC2 0 H 264-NTb[EZTVx.to].mkv'
+    or None if the file name does not follow this pattern."""
+
+    stem, extension = os.path.splitext(filename)
+    if extension.lower() not in VIDEO_EXTENSIONS:
+        return None
+    if ' ' not in stem:
+        # dot- or underscore-separated variant: "Tatort.S2026E18.Die.letzten.Menschen..."
+        stem = re.sub(r'[._]', ' ', stem)
+    components = WEB_FILENAME_REGEX.match(stem)
+    if not components:
+        return None
+
+    title_words = []
+    for word in components.group(3).split():
+        if WEB_METADATA_TOKEN_REGEX.fullmatch(word):
+            break
+        title_words.append(word)
+    if not title_words:
+        return None
+
+    return int(components.group(1)), int(components.group(2)), ' '.join(title_words), extension
+
+
+def get_filetags_end(filename):
+    """Returns the end of the file name containing filetags (without FILETAG_TO_REMOVE)
+    and the file extension, e.g. ' -- karl.mp4' or '.mp4'."""
+
+    extension = os.path.splitext(filename)[-1]
+    if ' -- ' not in filename:
+        return extension
+    tags = re.match(r'.+ -- (.+)', os.path.splitext(filename)[0]).group(1).split()
+    tags = [tag for tag in tags if tag != FILETAG_TO_REMOVE]
+    if tags:
+        return ' -- ' + ' '.join(tags) + extension
+    return extension
+
+
+def build_filename(row, mydate, se_code, end_with_tags):
+    """Returns the new file name like:
+    2026-09-20 Tatort 1340 S2026E18 - Ballauf und Schenk 96 - Die letzten Menschen von Köln.mkv"""
+
+    se_part = ' ' + se_code if se_code else ''
+    return mydate.strftime('%Y-%m-%d') + ' Tatort ' + str(row['Folge']) + se_part + ' - ' + \
+        row['Ermittler'] + ' ' + str(row['Fall']) + ' - ' + row['Titel'] + end_with_tags
+
+
+# sorted file names start with date and Tatort number (Folge), old and new pattern:
+# "2014-03-23 Tatort 905 - Ballauf und Schenk 59 - Der Fall Reinhardt -- highquality.mp4"
+# "2026-09-20 Tatort 1340 S2026E18 - Ballauf und Schenk 96 - Die letzten Menschen von Köln.mkv"
+SORTED_FILENAME_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2} Tatort (\d+)( |\.|$)')
+
+
+def find_potential_doubles(folge):
+    """Returns the paths of already sorted files with the same Tatort number (Folge)
+    within all sub-directories of the current directory, independent of
+    file name pattern, title spelling, Ermittler directory, filetags, or extension."""
+
+    doubles = []
+    for directory in sorted(entry for entry in os.listdir(os.getcwd()) if os.path.isdir(entry)):
+        for entry in sorted(os.listdir(directory)):
+            components = SORTED_FILENAME_REGEX.match(entry)
+            if components and components.group(1) == str(folge) and \
+               os.path.isfile(os.path.join(directory, entry)):
+                doubles.append(os.path.join(directory, entry))
+    return doubles
+
+
+def move_file(filename, directory, newfilename, folge):
+    """Moves the file into the directory with its new name (or warns if it already exists).
+    folge (the Tatort number) is used to detect potential doubles with different file name
+    patterns, titles, Ermittler directories, filetags, or extensions."""
+
+    destinationpath = os.path.join(directory, newfilename)
+    if os.path.isfile(destinationpath):
+        # warn if an episode was downloaded twice without overwriting the previous version
+        logging.warning('File "' + filename + '" \n' + ' ' * 5 + 'already exists as: ' + destinationpath + '\n')
+        return
+
+    doubles = find_potential_doubles(folge)
+    if doubles:
+        logging.warning('File "' + filename + '" \n' + ' ' * 5 + 'is a potential double of:\n' +
+                        '\n'.join(' ' * 8 + double for double in doubles) + '\n' +
+                        ' ' * 5 + '(target name would be: ' + destinationpath + ')')
+        answer = ''
+        while answer not in ('m', 'd', 's'):
+            answer = input('     Move it (m), delete it (d) or skip it (s)? ').strip().lower()
+        if answer == 'd':
+            logging.info('Deleting file "' + filename + '" due to user decision.\n')
+            if not options.simulate:
+                os.remove(filename)
+            return
+        if answer == 's':
+            logging.info('Leaving file "' + filename + '" untouched due to user decision.\n')
+            return
+
+    if not os.path.exists(directory) and not options.simulate:
+        os.makedirs(directory)
+        logging.warning('I created a new directory for "Ermitter": ' + directory)
+
+    logging.info('Moving file "' + filename + '" → \n' + ' ' * 5 + destinationpath + '\n')
+    if not options.simulate:
+        os.rename(filename, destinationpath)
+
+
+def ask_user_for_confirmation():
+    answer = input('     Accept this match? [y/n] ').strip().lower()
+    if answer != 'y':
+        logging.info('Skipping file due to user decision.')
+        return False
+    return True
+
+
+def build_season_episode_maps(table):
+    """Season = year of Erstausstrahlung, episode = position within that year.
+    Returns (dates_by_index, row_index_by_se_code, se_code_by_folge)."""
+
+    dates_by_index = {}
+    for index, row in table.iterrows():
+        try:
+            dates_by_index[index] = parse_erstausstrahlung(row['Erstausstrahlung'])
+        except ValueError:
+            logging.debug('Could not parse Erstausstrahlung "' + str(row['Erstausstrahlung']) +
+                          '" of Folge ' + str(row['Folge']) + ' - ignoring it for season/episode numbering')
+
+    def folge_sort_key(index):
+        try:
+            return int(table.loc[index, 'Folge'])
+        except (ValueError, TypeError):
+            return 0
+
+    index_by_se_code = {}
+    se_code_by_folge = {}
+    episode_counter = {}
+    for index in sorted(dates_by_index, key=lambda i: (dates_by_index[i], folge_sort_key(i))):
+        year = dates_by_index[index].year
+        episode_counter[year] = episode_counter.get(year, 0) + 1
+        se_code = 'S%04dE%02d' % (year, episode_counter[year])
+        index_by_se_code[se_code] = index
+        se_code_by_folge[str(table.loc[index, 'Folge'])] = se_code
+
+    return dates_by_index, index_by_se_code, se_code_by_folge
+
+
+def get_files_in_current_directory():
+    return sorted(entry for entry in os.listdir(os.getcwd()) if os.path.isfile(entry))
+
+
+def handle_web_downloads(table, dates_by_index, index_by_se_code):
+    """Handles files like 'Tatort S2026E18 Die letzten Menschen von Koeln 1080p ARD WEB-DL ....mkv'"""
+
+    for file in get_files_in_current_directory():
+        components = parse_web_filename(file)
+        if not components:
+            continue
+        year, episode, raw_title, extension = components
+        se_code = 'S%04dE%02d' % (year, episode)
+
+        if se_code not in index_by_se_code:
+            logging.warning('Could not find ' + se_code + ' in Wikipedia table: skipping file "' + file + '"')
+            continue
+        index = index_by_se_code[se_code]
+        row = table.loc[index]
+
+        if normalize_title(raw_title) != normalize_title(row['Titel']):
+            logging.warning('found ' + se_code + ' match with a different title: ' + file + '\n' +
+                            ' ' * 5 + '(title in file name: "' + raw_title + '", Wikipedia title: "' + row['Titel'] + '")')
+            if not ask_user_for_confirmation():
+                continue
+        else:
+            logging.debug('found web download match: ' + file)
+
+        newfilename = build_filename(row, dates_by_index[index], se_code, get_filetags_end(file))
+        move_file(file, row['Ermittler'], newfilename, row['Folge'])
+
+
 def main():
     """Main function"""
 
@@ -117,6 +339,7 @@ def main():
         error_exit(1, "Options \"--verbose\" and \"--quiet\" found. " +
                    "This does not make any sense, you silly fool :-)")
 
+    locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
 
     url = r'https://de.wikipedia.org/wiki/Liste_der_Tatort-Folgen'
     import urllib.request
@@ -124,6 +347,13 @@ def main():
     html = urllib.request.urlopen(req).read()
     tables = pandas.read_html(html)  # Returns list of all tables on page
     table = tables[0]  # The list of Tatort episodes
+
+    dates_by_index, index_by_se_code, se_code_by_folge = build_season_episode_maps(table)
+
+    # first: web downloads which contain season and episode in their file names
+    handle_web_downloads(table, dates_by_index, index_by_se_code)
+
+    # second: MediathekView downloads which are matched by their titles
 
     # invert the order of the table, starting with the newest episode
     table = table.reindex(index=table.index[::-1])
@@ -139,84 +369,51 @@ def main():
         # Folge                                                            1159
         # Titel                        Borowski und die Angst der weißen Männer
         # Sender                                                            NDR
-        # Erstausstrahlung                                         7. März 2021
+        # Erstausstrahlung                                         7. März 2021
         # Ermittler                                          Borowski und Sahin
         # Fall                                                               36
         # Autor                                   Peter Probst und Daniel Nocke
         # Regie                                                 Nicole Weegmann
         # Besonderheiten      Ausstrahlung anlässlich des Weltfrauentages (8...
 
-        rootdir = "."
         escaped_title = re.escape(row['Titel'])
         regex = re.compile(r'.+? Tatort .*?\s' + escaped_title + r'(\s.+$|$)')
         regex_fallback = re.compile(r'.+? Tatort .*?\s' + escaped_title + r'(\s.+$|$)', re.IGNORECASE)
 
-        locale.setlocale(locale.LC_ALL, 'de_AT.utf8')
+        for file in get_files_in_current_directory():
 
-        if 'wieder Oper' in row['Titel']:
-            pass
-            #import pudb; pu.db
+            if parse_web_filename(file):
+                continue  # web downloads were handled above
 
-        for root, dirs, files in os.walk(os.getcwd()):
-
-            del dirs[:]  # do not visit sub-directories
-
-            for file in files:
-                if regex.match(file):
-                    logging.debug('found match: ' + file)
-                elif regex_fallback.match(file):
-                    logging.warning('found case-insensitive match: ' + file + '\n' +
-                                    ' ' * 5 + '(Wikipedia title: "' + row['Titel'] + '")')
-                    answer = input('     Accept this match? [y/n] ').strip().lower()
-                    if answer != 'y':
-                        logging.info('Skipping file due to user decision.')
-                        continue
-                else:
+            if regex.match(file):
+                logging.debug('found match: ' + file)
+            elif regex_fallback.match(file):
+                logging.warning('found case-insensitive match: ' + file + '\n' +
+                                ' ' * 5 + '(Wikipedia title: "' + row['Titel'] + '")')
+                if not ask_user_for_confirmation():
                     continue
+            else:
+                continue
 
-                # the resulting files will be moved to directory names according to the Ermittler
-                directory = row['Ermittler']
+            if index not in dates_by_index:
+                logging.warning('Could not parse Erstausstrahlung "' + str(row['Erstausstrahlung']) +
+                                '": skipping file "' + file + '"')
+                continue
+            mydate = dates_by_index[index]
 
-                if not os.path.exists(directory) and not options.simulate:
-                    os.makedirs(directory)
-                    logging.warning('I created a new directory for "Ermitter": ' + directory)
+            se_code = se_code_by_folge.get(str(row['Folge']))
+            if not se_code:
+                logging.warning('Could not determine season/episode for Folge ' + str(row['Folge']))
 
-                # removing footnotes in dates and fixing "Jan." for %B matching:
-                erstausstrahlung = re.sub(r'\[.+\]', '', row['Erstausstrahlung'].replace('Jan.', 'Jänner'))
+            # example file names:
+            # 2011-08-28 Tatort 807 S2011E22 - Eisner 26 - Lohn der Arbeit -- karl.mp4
+            # 2007-10-28 Tatort 678 S2007E30 - Thiel und Boerne 12 - Satisfaktion.mp4
+            newfilename = build_filename(row, mydate, se_code, get_filetags_end(file))
+            move_file(file, row['Ermittler'], newfilename, row['Folge'])
 
-                # parsing the date:
-                try:
-                    # example: '17.\xa0Juli 2021'
-                    mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%B %Y')
-                except ValueError:
-                    # example: '17.\xa0Jul. 2021'
-                    mydate = datetime.datetime.strptime(erstausstrahlung, '%d.\xa0%b. %Y')
-
-                if ' -- ' in file:
-                    # if there are filetags, preserve them in the resulting file name
-                    end_with_tags = re.match(r'.+( -- .+)', file).group(1)
-                else:
-                    # pre-fill file name end with file extension (in case of no filetags)
-                    end_with_tags = os.path.splitext(file)[-1]
-
-                # example file names:
-                # 2011-08-28 Tatort 807 - Eisner 26 - Lohn der Arbeit -- highquality karl.mp4
-                # 2007-10-28 Tatort 678 - Thiel und Boerne 12 - Satisfaktion.mp4
-                newfilename = mydate.strftime('%Y-%m-%d') + ' Tatort ' + str(row['Folge']) + ' - ' + row['Ermittler'] + ' ' + \
-                    str(row['Fall']) + ' - ' + row['Titel'] + end_with_tags
-
-                destinationpath = os.path.join(directory, newfilename)
-                if os.path.isfile(destinationpath):
-                    # warn if an episode was downloaded twice without overwriting the previous version
-                    logging.warning('File "' + file + '" \n' + ' ' * 5 + 'already exists as: ' + destinationpath + '\n')
-                else:
-                    logging.info('Moving file "' + file + '" → \n' + ' ' * 5 + destinationpath + '\n')
-                    if not options.simulate:
-                        os.rename(file, destinationpath)
-
-                if not newfilename.startswith(mydate.strftime('%Y-%m-%d')):
-                    logging.warning('Please check the previous output: dates differ which could be a repetition of an ' +
-                                    'older episode (perfectly fine) or a mismatch according to the title (needs to be fixed).')
+            if not newfilename.startswith(os.path.basename(file)[:10]):
+                logging.warning('Please check the previous output: dates differ which could be a repetition of an ' +
+                                'older episode (perfectly fine) or a mismatch according to the title (needs to be fixed).')
 
     logging.debug("successfully finished.")
 
