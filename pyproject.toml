@@ -3,21 +3,34 @@ name = "tatort-sorter"
 description = "Moves and renames Tatort episodes into sub-folders according to the Ermittler based on the Wikipedia episode list"
 # readme = "README.org"
 readme = {text = """
-This Python script parses the file names of the current directory,
-compares their file names if they contain "Titel" from the long table
-from Liste der Tatort-Folgen on Wikipedia. The list is dynamically
-loaded from the web.
+This Python script parses the file names of the current directory and
+matches them against the long table from Liste der Tatort-Folgen on
+Wikipedia. The list is dynamically loaded from the web.
+
+Two input file name patterns are supported:
+
+- MediathekView downloads, matched by the "Titel" from Wikipedia:
+  2021-05-16T20.15.00 ORF - Tatort - Wo ist Mike -- highquality.mp4
+- Web downloads, matched by season and episode with a title check:
+  Tatort S2026E18 Die letzten Menschen von Koeln 1080p ARD WEB-DL AAC2 0 H 264-NTb[EZTVx.to].mkv
 
 If a match is found, the file then gets moved to a sub-directory
 according to the name of the "Ermittler". Furthermore, the file gets
 renamed according to this pattern:
 
-YYYY-MM-DD Tatort <Folge> - <Ermittler> <Fall> - <Titel>.<extension>
+YYYY-MM-DD Tatort <Folge> S<YYYY>E<xx> - <Ermittler> <Fall> - <Titel>.<extension>
+
+Example:
+
+2026-09-20 Tatort 1340 S2026E18 - Ballauf und Schenk 96 - Die letzten Menschen von Köln.mkv
+
+Already sorted episodes with the same Tatort number are detected as
+potential doubles.
 
 - Target group: users who are able to use command line tools and who are not afraid of Python scripts
 - Hosted and documented on github: https://github.com/novoid/Tatort-sorter
 """, content-type = "text/plain"}
-version = "2026.03.21.1"
+version = "2026.11.08.1"
 keywords = ["tatort", "tv", "media", "file managing", "file management", "files", "renaming"]
 
 # sequence along https://pypi.org/classifiers
