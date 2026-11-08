@@ -103,6 +103,52 @@ the new download, not the already sorted file. With =--simulate=,
 nothing gets moved or deleted. Files with the exact same target name
 are never overwritten.
 
+** Already watched episodes (history)
+
+If you delete episodes after watching them, the check for double
+downloads above can't help when the same episode gets downloaded once
+more years later (e.g., because of a re-transmission). Therefore, the
+script keeps a history file of all Tatort numbers it has ever seen:
+
+- every file it sorts and
+- every already sorted file it finds in the sub-directories on each
+  run, so episodes sorted manually or before the history existed are
+  recorded as well.
+
+When a new download has the same Tatort number as an entry from the
+history but is not on disk any more, you get a warning with the date
+and the old file name, and the same question: "Move it (m), delete it
+(d) or skip it (s)?".
+
+The history file is located at the first of:
+
+1. =--history PATH=
+2. environment variable =TATORT_SORTER_HISTORY= (e.g., to put it in a
+   synchronized folder for multiple computers)
+3. =$XDG_STATE_HOME/tatort-sorter/seen_episodes.txt=
+4. =~/.local/state/tatort-sorter/seen_episodes.txt=
+
+It is a plain text file with tab-separated lines (Folge, date
+recorded, source, file name):
+
+: 1340	2026-11-08	sorted	Ballauf und Schenk/2026-09-20 Tatort 1340 S2026E18 - Ballauf und Schenk 96 - Die letzten Menschen von Köln.mkv
+: 905	2026-11-08	scanned	Ballauf und Schenk/2014-03-23 Tatort 905 - Ballauf und Schenk 59 - Der Fall Reinhardt -- highquality.mp4
+: 1101
+
+You may edit it manually: a line with just a Tatort number is a valid
+entry, e.g., for episodes you have watched on TV or deleted before the
+history existed. Lines starting with =#= are comments. With
+=--simulate=, the history file is read but never written.
+
+Please note:
+- A history entry means "was sorted or found before", not necessarily
+  "was watched".
+- Episodes deleted before the first run with the history are unknown
+  unless you add them manually.
+- A wrong association (see [[*Warning: Wrong associations][Wrong associations]]) results in a wrong
+  history entry. Check the file name shown in the warning and remove
+  wrong lines from the history file.
+
 ** Warning: No proper error handling
 
 Notice, that this script *does not contain the proper error handling*
@@ -147,7 +193,8 @@ likely not the target group of a hacky Python script like this. ;-)
 
 I would recommend you to *use the command line switch "--simulate"
 first* so that you see what would happen, before you actually modify
-files! Note in this case, de-duplication is not checked.
+files! Double downloads and the history are checked, but nothing gets
+moved, deleted, or written to the history file.
 
 : uv --project /path/to/Tatort-sorter run tatort-sorter --simulate
 
@@ -161,14 +208,18 @@ files! Note in this case, de-duplication is not checked.
 # #+END_SRC
 
 #+begin_src
-usage: tatort-sorter [-h] [-s] [-v] [-q] [--version]
+usage: tatort-sorter [-h] [-s] [--history PATH] [-v] [-q] [--version]
 
 This script moves episodes of "Tatort" into sub-folders according to the names of the Ermittler.
 
-optional arguments:
+options:
   -h, --help      show this help message and exit
-  -s, --simulate  Just print what's being done, do not move files or create
-                  directories (no file exists check though)
+  -s, --simulate  Just print what's being done, do not move or delete files,
+                  create directories, or write the history file
+  --history PATH  History file of already sorted/seen Tatort numbers (default:
+                  $TATORT_SORTER_HISTORY or
+                  $XDG_STATE_HOME/tatort-sorter/seen_episodes.txt or
+                  ~/.local/state/tatort-sorter/seen_episodes.txt)
   -v, --verbose   Enable verbose mode
   -q, --quiet     Enable quiet mode
   --version       Display version and exit

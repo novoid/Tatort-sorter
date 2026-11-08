@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8; mode: python; -*-
-PROG_VERSION = u"Time-stamp: <2026-11-08 17:22:15 vk>"
+PROG_VERSION = u"Time-stamp: <2026-11-08 18:40:00 vk>"
 PROG_VERSION_DATE = PROG_VERSION[13:23]
 
 import time
@@ -58,7 +58,12 @@ parser = argparse.ArgumentParser(prog=sys.argv[0],
 
 parser.add_argument("-s", "--simulate",
                     dest="simulate", action="store_true",
-                    help="Just print what's being done, do not move files or create directories (no file exists check though)")
+                    help="Just print what's being done, do not move or delete files, create directories, or write the history file")
+
+parser.add_argument("--history",
+                    dest="history", metavar="PATH",
+                    help="History file of already sorted/seen Tatort numbers (default: $TATORT_SORTER_HISTORY or " +
+                    "$XDG_STATE_HOME/tatort-sorter/seen_episodes.txt or ~/.local/state/tatort-sorter/seen_episodes.txt)")
 
 parser.add_argument("-v", "--verbose",
                     dest="verbose", action="store_true",
@@ -203,25 +208,118 @@ def build_filename(row, mydate, se_code, end_with_tags):
 SORTED_FILENAME_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2} Tatort (\d+)( |\.|$)')
 
 
+def iter_sorted_files():
+    """Yields (folge, path) of all already sorted files within all sub-directories
+    of the current directory."""
+
+    for directory in sorted(entry for entry in os.listdir(os.getcwd()) if os.path.isdir(entry)):
+        for entry in sorted(os.listdir(directory)):
+            components = SORTED_FILENAME_REGEX.match(entry)
+            if components and os.path.isfile(os.path.join(directory, entry)):
+                yield components.group(1), os.path.join(directory, entry)
+
+
 def find_potential_doubles(folge):
     """Returns the paths of already sorted files with the same Tatort number (Folge)
     within all sub-directories of the current directory, independent of
     file name pattern, title spelling, Ermittler directory, filetags, or extension."""
 
-    doubles = []
-    for directory in sorted(entry for entry in os.listdir(os.getcwd()) if os.path.isdir(entry)):
-        for entry in sorted(os.listdir(directory)):
-            components = SORTED_FILENAME_REGEX.match(entry)
-            if components and components.group(1) == str(folge) and \
-               os.path.isfile(os.path.join(directory, entry)):
-                doubles.append(os.path.join(directory, entry))
-    return doubles
+    return [path for current_folge, path in iter_sorted_files() if current_folge == str(folge)]
+
+
+HISTORY_HEADER = '# Tatort-sorter history: Folge<TAB>recorded<TAB>source<TAB>file name\n'
+
+
+def get_history_path():
+    """--history, then $TATORT_SORTER_HISTORY, then the XDG state directory."""
+
+    if options.history:
+        return os.path.expanduser(options.history)
+    if os.environ.get('TATORT_SORTER_HISTORY'):
+        return os.path.expanduser(os.environ['TATORT_SORTER_HISTORY'])
+    state_home = os.environ.get('XDG_STATE_HOME') or os.path.expanduser('~/.local/state')
+    return os.path.join(state_home, 'tatort-sorter', 'seen_episodes.txt')
+
+
+class History:
+    """Persistent, append-only list of Tatort numbers (Folge) which were sorted or
+    found in the target directories once. Helps to recognize episodes which were
+    watched and deleted in the meantime. Lines: Folge<TAB>date<TAB>source<TAB>file name;
+    a line containing a bare number is a valid (manual) entry as well."""
+
+    def __init__(self, path):
+        self.path = path
+        self.entries_by_folge = {}
+        if os.path.isfile(path):
+            with open(path, encoding='utf-8') as historyfile:
+                for line in historyfile:
+                    line = line.rstrip('\n')
+                    if not line.strip() or line.lstrip().startswith('#'):
+                        continue
+                    fields = line.split('\t')
+                    folge = fields[0].strip()
+                    if not folge.isdigit():
+                        logging.debug('Ignoring unparsable line in history file ' + path + ': ' + line)
+                        continue
+                    fields += [''] * (4 - len(fields))
+                    self.entries_by_folge.setdefault(folge, []).append(tuple(fields[1:4]))
+        logging.debug('Loaded ' + str(len(self.entries_by_folge)) + ' Tatort numbers from history file ' + path)
+
+    def entries(self, folge):
+        return self.entries_by_folge.get(str(folge), [])
+
+    def record(self, folge, source, filename):
+        """Adds the entry unless the same Folge with the same file name is already known."""
+
+        folge = str(folge)
+        if any(entry[2] == filename for entry in self.entries(folge)):
+            return
+        entry = (datetime.date.today().isoformat(), source, filename)
+        self.entries_by_folge.setdefault(folge, []).append(entry)
+        if options.simulate:
+            return
+        directory = os.path.dirname(self.path)
+        if directory and not os.path.isdir(directory):
+            os.makedirs(directory)
+        write_header = not os.path.isfile(self.path)
+        with open(self.path, 'a', encoding='utf-8') as historyfile:
+            if write_header:
+                historyfile.write(HISTORY_HEADER)
+            historyfile.write('\t'.join((folge,) + entry) + '\n')
+
+
+history = None  # History instance, initialized in main()
+
+
+def format_history_entry(folge, entry):
+    date, source, oldname = entry
+    if not oldname:
+        return 'Tatort ' + str(folge) + ' (manual entry)'
+    return date + ' ' + source + ': ' + oldname
+
+
+def ask_move_delete_skip(filename):
+    """Returns True if the file should be moved; handles deletion and skipping."""
+
+    answer = ''
+    while answer not in ('m', 'd', 's'):
+        answer = input('     Move it (m), delete it (d) or skip it (s)? ').strip().lower()
+    if answer == 'd':
+        logging.info('Deleting file "' + filename + '" due to user decision.\n')
+        if not options.simulate:
+            os.remove(filename)
+        return False
+    if answer == 's':
+        logging.info('Leaving file "' + filename + '" untouched due to user decision.\n')
+        return False
+    return True
 
 
 def move_file(filename, directory, newfilename, folge):
     """Moves the file into the directory with its new name (or warns if it already exists).
     folge (the Tatort number) is used to detect potential doubles with different file name
-    patterns, titles, Ermittler directories, filetags, or extensions."""
+    patterns, titles, Ermittler directories, filetags, or extensions as well as episodes
+    which were sorted or seen before according to the history file."""
 
     destinationpath = os.path.join(directory, newfilename)
     if os.path.isfile(destinationpath):
@@ -230,20 +328,20 @@ def move_file(filename, directory, newfilename, folge):
         return
 
     doubles = find_potential_doubles(folge)
+    previous_entries = history.entries(folge) if history else []
     if doubles:
         logging.warning('File "' + filename + '" \n' + ' ' * 5 + 'is a potential double of:\n' +
                         '\n'.join(' ' * 8 + double for double in doubles) + '\n' +
                         ' ' * 5 + '(target name would be: ' + destinationpath + ')')
-        answer = ''
-        while answer not in ('m', 'd', 's'):
-            answer = input('     Move it (m), delete it (d) or skip it (s)? ').strip().lower()
-        if answer == 'd':
-            logging.info('Deleting file "' + filename + '" due to user decision.\n')
-            if not options.simulate:
-                os.remove(filename)
+        if not ask_move_delete_skip(filename):
             return
-        if answer == 's':
-            logging.info('Leaving file "' + filename + '" untouched due to user decision.\n')
+    elif previous_entries:
+        logging.warning('File "' + filename + '" \n' + ' ' * 5 +
+                        'was already sorted/seen before (it is not on disk any more), probably watched:\n' +
+                        '\n'.join(' ' * 8 + format_history_entry(folge, entry) for entry in previous_entries) + '\n' +
+                        ' ' * 5 + '(history file: ' + history.path + ')\n' +
+                        ' ' * 5 + '(target name would be: ' + destinationpath + ')')
+        if not ask_move_delete_skip(filename):
             return
 
     if not os.path.exists(directory) and not options.simulate:
@@ -253,6 +351,8 @@ def move_file(filename, directory, newfilename, folge):
     logging.info('Moving file "' + filename + '" → \n' + ' ' * 5 + destinationpath + '\n')
     if not options.simulate:
         os.rename(filename, destinationpath)
+    if history:
+        history.record(folge, 'sorted', destinationpath)
 
 
 def ask_user_for_confirmation():
@@ -349,6 +449,12 @@ def main():
     table = tables[0]  # The list of Tatort episodes
 
     dates_by_index, index_by_se_code, se_code_by_folge = build_season_episode_maps(table)
+
+    # remember all already sorted episodes, even those not sorted by this script
+    global history
+    history = History(get_history_path())
+    for folge, path in iter_sorted_files():
+        history.record(folge, 'scanned', path)
 
     # first: web downloads which contain season and episode in their file names
     handle_web_downloads(table, dates_by_index, index_by_se_code)

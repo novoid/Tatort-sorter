@@ -30,7 +30,7 @@ potential doubles.
 - Target group: users who are able to use command line tools and who are not afraid of Python scripts
 - Hosted and documented on github: https://github.com/novoid/Tatort-sorter
 """, content-type = "text/plain"}
-version = "2026.11.08.1"
+version = "2026.11.08.2"
 keywords = ["tatort", "tv", "media", "file managing", "file management", "files", "renaming"]
 
 # sequence along https://pypi.org/classifiers
